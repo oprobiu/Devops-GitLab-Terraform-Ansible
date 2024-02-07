@@ -1,0 +1,11 @@
+pre_req_pkgs:
+  - gpg
+
+docker_pubgpg: /etc/apt/keyrings/docker.gpg
+
+docker_pkgs:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin

@@ -1,0 +1,6 @@
+pkgs:
+  - chrony
+  - freeipa-client
+
+FIPA_SPN: "{{ lookup('env', 'FIPA_SPN') }}"
+FIPA_SPN_SECRET: "{{ lookup('env', 'FIPA_SPN_SECRET') }}"

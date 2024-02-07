@@ -1,0 +1,34 @@
+---
+- name: Configuring LXC hosts
+  hosts: lxc
+  roles:
+    - common_lxc
+  tasks:
+    - name: Run domainjoin role - prod
+      ansible.builtin.include_role:
+        name: domainjoin
+      when: inventory_file is not search("dev.yaml")
+
+- name: Configuring pairdrop hosts
+  hosts: pdrop
+  roles:
+    - pdrop
+
+- name: Configuring PostgreSQL hosts
+  hosts: pgsql
+  tasks:
+    - name: Run PostgreSQL role - prod
+      ansible.builtin.include_role:
+        name: postgresql
+      when: inventory_file is not search("dev.yaml")
+
+    - name: Install PostgreSQL - dev
+      ansible.builtin.package:
+        name: postgresql
+        state: present
+      when: inventory_file is search("dev.yaml")
+
+- name: Configuring vaultwarden hosts
+  hosts: vwarden
+  roles:
+    - vwarden

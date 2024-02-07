@@ -1,0 +1,31 @@
+stages:
+  - Build
+
+check-commit:
+  stage: Build
+  script:
+    - git fetch origin
+    - latestMainCommit=$(git rev-parse origin/main)
+    - echo "$(date) - [INFO] -- Checking if current tagged commit is the same as the latest commit on main branch"
+    - |
+      if [ $latestMainCommit != $CI_COMMIT_SHA ];
+      then
+        echo -e "\e[1;31m[ERROR] -- This pipeline is not running on the latest version of the code!\n\nCurrent commit: \e[0m${CI_COMMIT_SHA}\n\e[1;31mLatest main commit: \e[0m$latestMainCommit\nexitting..."
+        exit 1
+      fi
+  rules:
+    - if: $CI_COMMIT_TAG
+
+.package:
+  stage: Build
+  script:
+    - TERRAFORM_MODULE_VERSION=$(echo $CI_COMMIT_TAG | sed 's/v//')
+    - TERRAFORM_MODULE_ARCHIVE="${CI_PROJECT_NAME}-${CI_COMMIT_TAG}.tgz"
+    - TERRAFORM_MODULE_UPLOAD_LINK=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/terraform/modules/${TERRAFORM_MODULE_SYSTEM}/${TERRAFORM_MODULE_NAME}/${TERRAFORM_MODULE_VERSION}/file
+    - echo -e "[INFO] -- Packaging the module"
+    - tar  --exclude='./.git' --exclude='./example' --exclude='README.md' --exclude='.gitlab-ci.yml' -vczf /tmp/${TERRAFORM_MODULE_ARCHIVE} ./
+    - echo -e "[INFO] -- Uploading module to following registry '${TERRAFORM_MODULE_UPLOAD_LINK}'"
+    - 'curl --fail-with-body --location --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file /tmp/${TERRAFORM_MODULE_ARCHIVE} ${TERRAFORM_MODULE_UPLOAD_LINK}'
+  needs: ["check-commit"]
+  rules:
+    - if: $CI_COMMIT_TAG

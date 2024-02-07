@@ -1,0 +1,67 @@
+---
+- name: Check if role has been executed
+  ansible.builtin.stat:
+    path: /etc/ansible/common_lxc.mrk
+  register: role_rc
+
+- name: Debian configuration
+  when: ansible_os_family == 'Debian' and role_rc.stat.exists is false
+  block:
+    - name: Bring system up to date
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: true
+      register: update_rc
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_command: systemctl reboot
+      when: update_rc is changed # noqa: no-handler
+
+    - name: Install base packages
+      ansible.builtin.package:
+        name: "{{ base_debian_pkgs }}"
+        state: present
+      register: install_rc
+
+    - name: Configure unattended-upgrades
+      ansible.builtin.copy:
+        src: 50unattended-upgrades
+        dest: /etc/apt/apt.conf.d/50unattended-upgrades
+        mode: '0644'
+      register: configure_rc
+
+    - name: Set unattended-upgrades frequency
+      ansible.builtin.copy:
+        src: 20auto-upgrades
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        mode: '0644'
+      register: freq_rc
+
+    - name: Update auto-upgrades
+      ansible.builtin.command: dpkg-reconfigure -f noninteractive unattended-upgrades
+      register: dpkg_rc
+      changed_when: dpkg_rc.rc == 0
+      when: freq_rc is changed # noqa: no-handler
+
+    - name: Restart and enable unattended-upgrades
+      ansible.builtin.systemd_service:
+        name: unattended-upgrades
+        state: started
+        enabled: true
+      when: configure_rc is changed or freq_rc is changed
+
+    - name: Dry-run unattended-upgrades
+      ansible.builtin.command: unattended-upgrades --dry-run # noqa: no-changed-when
+
+    - name: Create Ansible meta folder
+      ansible.builtin.file:
+        path: /etc/ansible
+        state: directory
+        mode: '0755'
+
+    - name: Mark role as executed
+      ansible.builtin.copy:
+        content: "This file marks the role as executed\nDo not remove this file\n"
+        dest: /etc/ansible/common_lxc.mrk
+        mode: '0644'

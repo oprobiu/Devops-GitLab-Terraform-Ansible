@@ -1,0 +1,9 @@
+---
+all:
+  children:
+    glrunner:
+      hosts:
+        glr1:
+          ansible_host: YOUR_GITLAB_RUNNER_URL
+  vars:
+    ansible_user: root

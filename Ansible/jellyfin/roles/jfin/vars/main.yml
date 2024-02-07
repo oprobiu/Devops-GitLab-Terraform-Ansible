@@ -1,0 +1,7 @@
+jf_req_pkgs:
+  - gnupg
+  - nginx
+
+jellyfin_pubgpg: /etc/apt/keyrings/jellyfin.gpg
+
+jellyfin_pkgs: jellyfin

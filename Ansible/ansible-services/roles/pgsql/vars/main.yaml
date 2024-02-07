@@ -1,0 +1,3 @@
+pgs_pkgs:
+  - postgresql-15
+  - nfs-common

@@ -1,0 +1,16 @@
+---
+stages:
+  - Policy-Check
+
+sentinel:
+  stage: Policy-Check
+  image: hashicorp/sentinel
+  tags:
+    - docker
+  script:
+    - cd policies
+    - sentinel apply -color -config ../.config/sentinel.hcl
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: never
+    - when: on_success

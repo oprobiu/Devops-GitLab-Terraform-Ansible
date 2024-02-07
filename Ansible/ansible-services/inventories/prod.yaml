@@ -1,0 +1,25 @@
+---
+all:
+  children:
+    lxc:
+      hosts:
+        pd1:
+          ansible_host: 10.0.0.2
+        pg1:
+          ansible_host: 10.0.0.3
+        vw1:
+          ansible_host: 10.0.0.4
+    pdrop:
+      hosts:
+        pd1:
+    pgsql:
+      hosts:
+        pg1:
+    vwarden:
+      hosts:
+        vw1:
+
+  vars:
+    ansible_user: root
+    domainName: DOMAIN_NAME
+    ktech_db_server: pgsql.DOMAIN_NAME

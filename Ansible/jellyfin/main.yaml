@@ -1,0 +1,10 @@
+---
+- name: Configuring LXC hosts
+  hosts: lxc
+  roles:
+    - common_lxc
+
+- name: Configuring Jellyfin hosts
+  hosts: jfin
+  roles:
+    - jfin

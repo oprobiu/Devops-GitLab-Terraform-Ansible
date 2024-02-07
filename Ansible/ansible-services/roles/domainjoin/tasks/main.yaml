@@ -1,0 +1,37 @@
+---
+- name: Install required packages
+  ansible.builtin.package:
+    name: "{{ pkgs }}"
+    state: present
+
+- name: Replace chrony service file
+  ansible.builtin.copy:
+    src: chrony.service
+    dest: /usr/lib/systemd/system/chrony.service
+    owner: root
+    group: root
+    mode: "0644"
+    force: true
+  when: "'lxc' in group_names"
+
+- name: Enable chrony service
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Set hosts file according to IPA specifications
+  ansible.builtin.replace:
+    path: /etc/hosts
+    regexp: "# --- BEGIN PVE ---\n.*\n# --- END PVE ---"
+    replace: "# --- BEGIN PVE ---\n{{ ansible_host }} {{ ansible_facts.hostname }}.{{ domainName }} {{ ansible_facts.hostname }}\n# --- END PVE ---"
+
+- name: Join domain
+  ansible.builtin.command: >
+    ipa-client-install --unattended --domain="$DOMAIN_NAME"
+    --server="fipa0.$DOMAIN_NAME" --realm="$DOMAIN_NAME" --principal="{{ FIPA_SPN }}"
+    --password="{{ FIPA_SPN_SECRET }}" --mkhomedir
+  register: ipa_client_install_rc
+  changed_when: ipa_client_install_rc.rc == 0
+  failed_when: ipa_client_install_rc.rc != 0 and ipa_client_install_rc.rc != 3

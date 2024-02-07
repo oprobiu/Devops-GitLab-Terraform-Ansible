@@ -1,0 +1,90 @@
+---
+- name: Install vaultwarden pre-requisites
+  ansible.builtin.package:
+    name: "{{ vw_requirements }}"
+    state: present
+
+- name: Create keyrings folder
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Check if vaultwarden keyring exists
+  ansible.builtin.stat:
+    path: /etc/apt/keyrings/vaultwarden.gpg
+  register: vw_keyring
+
+- name: Setup vaultwarden apt repo
+  when: vw_keyring.stat.exists is false
+  block:
+    - name: Download vaultwarden gpg key
+      ansible.builtin.get_url:
+        url: https://packagecloud.io/dionysius/vaultwarden/gpgkey
+        dest: /tmp/vaultwarden.gpg
+        mode: '0644'
+
+    - name: Add vaultwarden keyring
+      ansible.builtin.command:
+        cmd: gpg --dearmor -o /etc/apt/keyrings/vaultwarden.gpg /tmp/vaultwarden.gpg
+        creates: /etc/apt/keyrings/vaultwarden.gpg
+
+    - name: Set correct file permissions
+      ansible.builtin.file:
+        path: /etc/apt/keyrings/vaultwarden.gpg
+        mode: '0644'
+
+- name: Add vaultwarden apt repository
+  ansible.builtin.template:
+    src: vwarden.list.j2
+    dest: /etc/apt/sources.list.d/vaultwarden.list
+    mode: '0644'
+
+- name: Install vaultwarden
+  ansible.builtin.package:
+    name: "{{ vw_pkgs }}"
+    state: present
+    update_cache: true
+
+- name: Stop vaultwarden service
+  ansible.builtin.service:
+    name: vaultwarden
+    state: stopped
+
+- name: Copy over vaultwarden config
+  ansible.builtin.template:
+    src: .env.j2
+    dest: /etc/vaultwarden/.env
+    mode: '0644'
+
+- name: Copy over vaultwarden service file
+  ansible.builtin.template:
+    src: vaultwarden.service.j2
+    dest: /usr/lib/systemd/system/vaultwarden.service
+    mode: '0644'
+
+- name: Enable and start vaultwarden service
+  ansible.builtin.service:
+    name: vaultwarden
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Copy over Vaultwarden nginx config
+  ansible.builtin.copy:
+    src: vault.DOMAIN_NAME.conf
+    dest: /etc/nginx/sites-available/vault.camrad.tech.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/vault.camrad.tech.conf
+    dest: /etc/nginx/sites-enabled/vault.camrad.tech.conf
+    state: link
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent

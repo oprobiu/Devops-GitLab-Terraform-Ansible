@@ -1,0 +1,16 @@
+vw_requirements:
+  - debian-archive-keyring
+  - gnupg
+  - apt-transport-https
+  - nginx
+  - sudo
+
+vw_pkgs:
+  - vaultwarden
+  - vaultwarden-web-vault
+
+vw_db_url: "postgresql://{{ vw_db_user }}:{{ vw_db_secret }}@{{ ktech_db_server }}:5432/vwarden"
+vw_db_user: "{{ lookup('env', 'VW_DB_USER') }}"
+vw_db_secret: "{{ lookup('env', 'VW_DB_SECRET') }}"
+vw_web_domain: "{{ lookup('env', 'VW_WEB_DOMAIN') }}"
+vw_web_admin_token: "{{ lookup('env', 'VW_WEB_ADMIN_TOKEN') }}"

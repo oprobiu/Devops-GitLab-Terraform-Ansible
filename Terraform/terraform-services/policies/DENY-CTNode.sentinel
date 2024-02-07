@@ -1,0 +1,24 @@
+import "tfplan/v2" as tfplan
+
+empty_plan = tfplan.raw.planned_values.root_module is {}
+
+is_correct_node = false
+allowed_nodes = {
+  "prod": "pve",
+  "dev": "pve",
+}
+
+if not empty_plan {
+  for tfplan.raw.planned_values.root_module.child_modules as m {
+    for m.resources as r {
+      if r.type is "proxmox_lxc" {
+        is_correct_node = r.values.target_node is allowed_nodes[r.values.pool]
+        print("[POLICY VIOLATION] -- Resource '", r.address, "' in", r.values.pool, "pool must be deployed to node:", allowed_nodes[r.values.pool], "but node is set to:", r.values.target_node)
+      }
+    }
+  }
+}
+
+main = rule {
+  empty_plan or is_correct_node
+}

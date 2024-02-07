@@ -1,0 +1,57 @@
+---
+- name: Install docker pre-requisites
+  ansible.builtin.package:
+    name: "{{ pre_req_pkgs }}"
+    state: present
+
+- name: Create keyrings folder
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Find docker.gpg file
+  ansible.builtin.find:
+    paths: /etc/apt/keyrings
+    patterns: 'docker.gpg'
+  register: find_rc
+
+- name: Add docker repo key
+  when: find_rc.matched == 0
+  block:
+    - name: Download docker gpg pubkey
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /tmp/docker.gpg
+        mode: '0644'
+      register: dgpg_rc
+
+    - name: Create gpg fingerprint from docker pubkey
+      ansible.builtin.command:
+        cmd: "gpg --dearmor -o {{ docker_pubgpg }} {{ dgpg_rc.dest }}"
+        creates: "{{ docker_pubgpg }}"
+
+    - name: Set correct permissions on docker gpg
+      ansible.builtin.file:
+        path: "{{ docker_pubgpg }}"
+        mode: '0644'
+
+- name: Add docker apt repository
+  ansible.builtin.template:
+    src: docker.list.j2
+    dest: /etc/apt/sources.list.d/docker.list
+    mode: '0644'
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install docker engine
+  ansible.builtin.package:
+    name: "{{ docker_pkgs }}"
+    state: present
+
+- name: Run hello-world container
+  ansible.builtin.command: docker container run hello-world
+  register: cmd_rc
+  changed_when: cmd_rc.rc == 0

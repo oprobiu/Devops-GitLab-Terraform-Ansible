@@ -1,0 +1,48 @@
+import "tfplan/v2" as tfplan
+import "decimal"
+import "strings"
+
+empty_plan = tfplan.raw.planned_values.root_module is {}
+
+in_range = false
+ip_in_id = false
+allowed_ranges = {
+	"template": range(200, 299),
+	"prod":     range(2000, 2999),
+	"dev":      range(4000, 4999),
+}
+
+func checkVMIDRange(pool, vmid, address) {
+	allowed_range = allowed_ranges[pool]
+	in_range = vmid in allowed_range
+	if not in_range {
+		print("[POLICY VIOLATION] -- VMID:", decimal.new(vmid).coefficient, "not in allowed range for", pool, "pool. Offender: '", address, "'")
+	}
+	return in_range
+}
+
+func checkIPinID(ip, vmid, address) {
+	vmid_last_octet = decimal.new(vmid).modulo(1000).coefficient
+	ip_split = strings.split(ip, "/")[0]
+	ip_last_octet = strings.split(ip_split, ".")[3]
+	ip_in_id = vmid_last_octet == ip_last_octet
+	if not ip_in_id {
+		print("[POLICY VIOLATION] -- IP last octet:", ip_last_octet, "not found in VMID:", decimal.new(vmid).coefficient, "Offender: '", address, "'")
+	}
+	return ip_in_id
+}
+
+if not empty_plan {
+	for tfplan.raw.planned_values.root_module.child_modules as m {
+		for m.resources as r {
+			if r.type is "proxmox_lxc" {
+				in_range = checkVMIDRange(r.values.pool, r.values.vmid, r.address)
+				ip_in_id = checkIPinID(r.values.network[0].ip, r.values.vmid, r.address)
+			}
+		}
+	}
+}
+
+main = rule {
+	empty_plan or in_range and ip_in_id
+}

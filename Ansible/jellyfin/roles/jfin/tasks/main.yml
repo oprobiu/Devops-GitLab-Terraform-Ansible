@@ -1,0 +1,88 @@
+---
+- name: Install Nginx and pre-requisites
+  ansible.builtin.package:
+    name: "{{ jf_req_pkgs }}"
+    state: present
+
+- name: Create keyrings folder
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Find jellyfin.gpg file
+  ansible.builtin.find:
+    paths: /etc/apt/keyrings
+    patterns: "jellyfin.gpg"
+  register: find_rc
+
+- name: Add jellyfin repo key
+  when: find_rc.matched == 0
+  block:
+    - name: Download jellyfin gpg pubkey
+      ansible.builtin.get_url:
+        url: https://repo.jellyfin.org/jellyfin_team.gpg.key
+        dest: /tmp/jellyfin.gpg
+        mode: "0644"
+      register: jgpg_rc
+
+    - name: Create gpg fingerprint from jellyfin pubkey
+      ansible.builtin.command:
+        cmd: "gpg --dearmor -o {{ jellyfin_pubgpg }} {{ jgpg_rc.dest }}"
+        creates: "{{ jellyfin_pubgpg }}"
+
+    - name: Set correct permissions on jellyfin gpg
+      ansible.builtin.file:
+        path: "{{ jellyfin_pubgpg }}"
+        mode: "0644"
+
+- name: Add jellyfin apt repository
+  ansible.builtin.template:
+    src: jfin.sources.j2
+    dest: /etc/apt/sources.list.d/jellyfin.sources
+    mode: "0644"
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install jellyfin
+  ansible.builtin.package:
+    name: "{{ jellyfin_pkgs }}"
+    state: present
+
+- name: Enable Jellyfin service
+  ansible.builtin.service:
+    daemon_reload: true
+    name: "jellyfin"
+    enabled: true
+    state: started
+
+- name: Configure Nginx
+  ansible.builtin.copy:
+    src: jfin.conf
+    dest: /etc/nginx/conf.d/jellyfin.conf
+    owner: "root"
+    group: "root"
+    mode: "0644"
+
+- name: Stop and disable Apache2 service
+  ansible.builtin.service:
+    name: "apache2"
+    state: stopped
+    enabled: false
+
+- name: Restart Nginx service
+  ansible.builtin.service:
+    daemon_reload: true
+    name: "nginx"
+    enabled: true
+    state: restarted
+
+- name: Add Ip and domain name to hosts file
+  ansible.builtin.copy:
+    src: hosts
+    dest: /etc/hosts
+    owner: "root"
+    group: "root"
+    mode: "0644"

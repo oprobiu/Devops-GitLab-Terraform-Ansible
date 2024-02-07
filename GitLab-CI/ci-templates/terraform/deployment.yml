@@ -1,0 +1,88 @@
+---
+stages:
+  - Initialize
+  - Build
+  - Deploy
+  - Cleanup
+
+################################################################################
+#                                  TEMPLATES                                   #
+################################################################################
+.tf-cache: &tf-cache
+  paths:
+    - ${CI_PROJECT_DIR}/environments/${CI_ENVIRONMENT_NAME}/.terraform
+    - ${CI_PROJECT_DIR}/environments/${CI_ENVIRONMENT_NAME}/.terraform.lock.hcl
+  key: ${CI_ENVIRONMENT_NAME}
+  policy: pull
+
+.cd-env-fldr: &cd-env-fldr
+  - cd ${CI_PROJECT_DIR}/environments/${CI_ENVIRONMENT_NAME}
+
+.init:
+  stage: Initialize
+  cache:
+    - <<: *tf-cache
+      policy: push
+  before_script:
+    - *cd-env-fldr
+  script:
+    - terraform init
+
+.init-module:
+  stage: Initialize
+  cache:
+    - <<: *tf-cache
+      policy: push
+  before_script:
+    - *cd-env-fldr
+  script:
+    - |
+      cat <<EOT > ~/.terraformrc
+      credentials "GITLAB_URL" {
+        token = "${CI_JOB_TOKEN}"
+      }
+      EOT
+    - terraform init
+
+.plan:
+  stage: Build
+  cache:
+    - <<: *tf-cache
+  before_script:
+    - shopt -s expand_aliases
+    - alias convert_report="jq -r '([.resource_changes[]?.change.actions?]|flatten)|{\"create\":(map(select(.==\"create\"))|length),\"update\":(map(select(.==\"update\"))|length),\"delete\":(map(select(.==\"delete\"))|length)}'"
+    - *cd-env-fldr
+  script:
+    - terraform plan -out="${CI_ENVIRONMENT_NAME}.tfplan"
+    - terraform show --json ${CI_ENVIRONMENT_NAME}.tfplan > ${CI_PROJECT_DIR}/tfplan.json
+    - terraform show --json ${CI_ENVIRONMENT_NAME}.tfplan | convert_report > ${CI_PROJECT_DIR}/${CI_ENVIRONMENT_NAME}-report.tfplan
+  artifacts:
+    name: "${CI_ENVIRONMENT_NAME}-plan"
+    paths:
+      - tfplan.json
+      - ${CI_PROJECT_DIR}/environments/${CI_ENVIRONMENT_NAME}/${CI_ENVIRONMENT_NAME}.tfplan
+    reports:
+      terraform: ${CI_ENVIRONMENT_NAME}-report.tfplan
+    untracked: false
+  resource_group: ${CI_ENVIRONMENT_NAME}
+
+.apply:
+  stage: Deploy
+  cache:
+    - <<: *tf-cache
+  before_script:
+    - *cd-env-fldr
+  script:
+    - terraform apply ${CI_ENVIRONMENT_NAME}.tfplan
+  resource_group: ${CI_ENVIRONMENT_NAME}
+
+.destroy:
+  stage: Cleanup
+  cache:
+    - <<: *tf-cache
+  before_script:
+    - *cd-env-fldr
+  script:
+    - terraform destroy -auto-approve
+  resource_group: ${CI_ENVIRONMENT_NAME}
+  when: manual

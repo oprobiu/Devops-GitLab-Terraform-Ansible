@@ -1,0 +1,43 @@
+import "tfplan/v2" as tfplan
+import "strings"
+
+empty_plan = tfplan.raw.planned_values.root_module is {}
+
+has_pool = false
+has_tags = false
+tag_is_pool = false
+
+if not empty_plan {
+  for tfplan.raw.planned_values.root_module.child_modules as m {
+    print(m)
+    for m.resources as r {
+      if r.type is "proxmox_lxc" {
+        if r.values.pool != null {
+          has_pool = true
+        } else {
+          print("[POLICY VIOLATION] -- Missing pool for ", r.address)
+        }
+
+        if r.values.tags != null {
+          has_tags = true
+        } else {
+          print("[POLICY VIOLATION] -- Missing tags for", r.address)
+        }
+
+        tags = strings.split(r.values.tags, ";")
+        for tags as t {
+          if t is r.values.pool {
+            tag_is_pool = true
+          }
+        }
+        if not tag_is_pool {
+          print("[POLICY VIOLATION] -- Pool", r.values.pool, "is not in tags", r.values.tags, "for '", r.address, "'")
+        }
+      }
+    }
+  }
+}
+
+main = rule {
+  empty_plan or (has_pool and has_tags and tag_is_pool)
+}

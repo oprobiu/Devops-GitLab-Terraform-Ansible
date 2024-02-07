@@ -1,0 +1,13 @@
+[Unit]
+Description=PairDrop - A simple file sharing service
+
+[Service]
+Type=simple
+User=pdrop
+Group=pdrop
+Restart=always
+WorkingDirectory=/opt/PairDrop
+ExecStart=/usr/bin/node /opt/PairDrop/index.js --rate-limit --auto-restart --localhost-only
+
+[Install]
+WantedBy=multi-user.target

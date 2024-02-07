@@ -1,0 +1,12 @@
+---
+all:
+  children:
+    lxc:
+      hosts:
+        jf1:
+          ansible_host: 10.0.0.20
+          ansible_user: root
+          ansible_password: 12345
+    jfin:
+      hosts:
+        jf1:

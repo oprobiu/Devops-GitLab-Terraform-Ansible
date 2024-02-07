@@ -1,0 +1,19 @@
+---
+- name: Configuring gitlab-runner hosts
+  hosts: glrunner
+  tasks:
+    - name: Execute common_lxc role
+      ansible.builtin.include_role:
+        name: common_lxc
+
+    - name: Execute docker role
+      ansible.builtin.include_role:
+        name: docker
+
+    - name: Execute gl_runner role
+      ansible.builtin.include_role:
+        name: gl_runner
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_command: systemctl reboot

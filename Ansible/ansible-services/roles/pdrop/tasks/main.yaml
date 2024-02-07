@@ -1,0 +1,66 @@
+---
+- name: Install PairDrop pre-requisites
+  ansible.builtin.package:
+    name: "{{ pd_req_pkgs }}"
+    state: present
+
+- name: Disable nginx default config
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+
+- name: Checkout PairDrop repo
+  ansible.builtin.git:
+    repo: "https://github.com/schlagmichdoch/PairDrop.git"
+    dest: "/opt/PairDrop"
+    version: "v1.7.7"
+    depth: 1
+
+- name: Create PairDrop user
+  ansible.builtin.user:
+    name: "pdrop"
+    state: present
+    shell: "/bin/bash"
+    createhome: true
+
+- name: Set PairDrop permissions
+  ansible.builtin.file:
+    path: "/opt/PairDrop"
+    owner: "pdrop"
+    group: "pdrop"
+    mode: "0755"
+    recurse: true
+
+- name: Copy over PairDrop nginx config
+  ansible.builtin.copy:
+    src: "drop.$DOMAIN_NAME.conf"
+    dest: "/etc/nginx/sites-available/drop.camarad.tech.conf"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+
+- name: Enable PairDrop nginx config
+  ansible.builtin.file:
+    src: "/etc/nginx/sites-available/drop.$DOMAIN_NAME.conf"
+    dest: "/etc/nginx/sites-enabled/drop.$DOMAIN_NAME.conf"
+    state: link
+
+- name: Copy over PairDrop service file
+  ansible.builtin.copy:
+    src: "pdrop.service"
+    dest: "/etc/systemd/system/pairdrop.service"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+
+- name: Install PairDrop package.json dependencies
+  community.general.npm:
+    path: "/opt/PairDrop"
+    state: present
+
+- name: Enable PairDrop service
+  ansible.builtin.service:
+    daemon_reload: true
+    name: "pairdrop"
+    enabled: true
+    state: started

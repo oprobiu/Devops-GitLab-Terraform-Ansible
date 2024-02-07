@@ -1,0 +1,43 @@
+gitlab-ci::set:resource_groups:
+  stage: ".pre"
+  script:
+    - |
+      for UNORDERED_RG in $(curl -kH "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/resource_groups" | jq '.[] | select(.process_mode == "unordered") | .key');
+      do
+        RG=$(echo ${UNORDERED_RG} | sed 's/"//g')
+        echo -e "\n [INFO] -- Setting process_mode of ${RG} to oldest_first..."
+        curl -X PUT -d "process_mode=oldest_first" -kH "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" "${CI_API_v4_URL}/projects/${CI_PROJECT_ID}/resource_groups/${RG}"
+      done
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true" || $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: always
+
+# .secret-analyzer:
+secret_detection:
+  stage: .pre
+  image: "$SECURE_ANALYZERS_PREFIX/secrets:$SECRETS_ANALYZER_VERSION$SECRET_DETECTION_IMAGE_SUFFIX"
+  tags:
+    - docker
+  variables:
+    GIT_DEPTH: "50"
+    SECURE_ANALYZERS_PREFIX: "$CI_TEMPLATE_REGISTRY_HOST/security-products"
+    SECRET_DETECTION_IMAGE_SUFFIX: ""
+
+    SECRETS_ANALYZER_VERSION: "5"
+    SECRET_DETECTION_EXCLUDED_PATHS: ""
+    ADDITIONAL_CA_CERT_BUNDLE: |
+      -----BEGIN CERTIFICATE-----
+
+      -----END CERTIFICATE-----
+  script:
+    - /analyzer run
+  services: []
+  artifacts:
+    reports:
+      secret_detection: gl-secret-detection-report.json
+  rules:
+    - if: $SECRET_DETECTION_DISABLED == 'true' || $SECRET_DETECTION_DISABLED == '1'
+      when: never
+    - when: always
+  allow_failure: true

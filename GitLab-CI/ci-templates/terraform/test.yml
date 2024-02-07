@@ -1,0 +1,96 @@
+stages:
+  - Test
+
+.tf_init_no_backend: &tf_init_no_backend
+  - |
+    cat <<EOT > ~/.terraformrc
+    credentials "GITLAB_URL" {
+      token = "${CI_JOB_TOKEN}"
+    }
+    EOT
+  - terraform init -backend=false
+
+.tf-fmt:
+  stage: Test
+  variables:
+    FMT_RESULTS_FILE: fmtResults.xml
+  script:
+    - echo $CI_PIPELINE_SOURCE
+    - echo $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
+    - echo $CI_COMMIT_BRANCH
+    - set +e
+    - fmtTestResults=$(terraform fmt -check -recursive)
+    - set -e
+    - |
+      echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" > $FMT_RESULTS_FILE
+      echo "<testsuite tests=\"1\">" >> $FMT_RESULTS_FILE
+
+      if [[ -n $fmtTestResults ]];
+      then
+
+        fmtFiles=($fmtTestResults)
+        for fl in "${fmtFiles[@]}";
+        do
+          echo "  <testcase classname=\"terraform-format\" name=\"$fl\">" >> $FMT_RESULTS_FILE
+          echo "      <failure message=\"File incorrectly formatted\" type=\"formatting_error\"></failure>" >> $FMT_RESULTS_FILE
+          echo "  </testcase>" >> $FMT_RESULTS_FILE
+        done
+
+      else
+        echo "<testcase classname=\"terraform\" name=\"Terraform fmt check\"></testcase>" >> $FMT_RESULTS_FILE
+      fi
+      echo "</testsuite>" >> $FMT_RESULTS_FILE
+  artifacts:
+    reports:
+      junit: "$FMT_RESULTS_FILE"
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: never
+    - when: always
+  allow_failure: true
+
+.tf-validate:
+  stage: Test
+  script:
+    - *tf_init_no_backend
+    - terraform validate
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: never
+    - when: always
+
+.tflint:
+  stage: Test
+  variables:
+    TFLINT_RESULTS_FILE: tflintResults.xml
+  script:
+    - tflint --config ${CI_PROJECT_DIR}/.config/.tflint.hcl
+    - tflint --format=junit > $TFLINT_RESULTS_FILE
+  artifacts:
+    reports:
+      junit: $TFLINT_RESULTS_FILE
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: never
+    - when: always
+  allow_failure: true
+
+.terratest:
+  stage: Test
+  script:
+    - *tf_init_no_backend
+    - cd ${CI_PROJECT_DIR}/.terratest
+    - set +e
+    - go test -count=1 -timeout 30m -p 1 | tee terratest_output.log
+    - set -e
+    - terratest_log_parser --log-level=error --testlog=terratest_output.log -outputdir=terratest_logs
+  artifacts:
+    paths:
+      - ./.terratest/terratest_logs/report.xml
+    reports:
+      junit: ./.terratest/terratest_logs/report.xml
+  rules:
+    - if: $CI_COMMIT_REF_PROTECTED == "true"
+      when: never
+    - when: on_success
+  allow_failure: false

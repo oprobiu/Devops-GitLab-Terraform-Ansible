@@ -1,0 +1,5 @@
+pd_req_pkgs:
+  - git
+  - nodejs
+  - npm
+  - nginx

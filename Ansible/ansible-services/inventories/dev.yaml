@@ -1,0 +1,15 @@
+---
+all:
+  children:
+    lxc:
+      hosts:
+        pg1:
+          ansible_host: 10.0.0.15
+    pgsql:
+      hosts:
+        pg1:
+
+  vars:
+    ansible_user: root
+    domainName: $DOMAIN_NAME
+    ktech_db_server: 10.0.0.15

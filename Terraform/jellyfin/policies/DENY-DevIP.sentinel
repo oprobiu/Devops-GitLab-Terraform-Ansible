@@ -1,0 +1,30 @@
+import "tfplan/v2" as tfplan
+import "strings"
+import "decimal"
+
+empty_plan = tfplan.raw.planned_values.root_module is {}
+
+in_range = false
+allowed_range = range(192, 223)
+
+if not empty_plan {
+  for tfplan.raw.planned_values.root_module.child_modules as m {
+    for m.resources as r {
+      if r.type is "proxmox_lxc" {
+        if r.values.pool is "dev" {
+          ip = strings.split(r.values.network[0].ip, "/")[0]
+          ip_last_octet = strings.split(ip, ".")[3]
+          print("IP address:", ip, "last octet:", ip_last_octet)
+          in_range = decimal.new(ip_last_octet).int in allowed_range
+          if not in_range {
+            print("[POLICY VIOLATION] -- IP address:", ip, "is not in allowed dev subnet!(10.0.0.", allowed_range, ")")
+          }
+        }
+      }
+    }
+  }
+}
+
+main = rule {
+  empty_plan or in_range
+}
